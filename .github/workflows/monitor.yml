@@ -21,7 +21,11 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Install dependency
+        run: pip install requests
+
       - name: Check Instagram username
         env:
+          IG_USERNAME: "3az29"
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python monitor.py
