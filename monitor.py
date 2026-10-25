@@ -5,29 +5,67 @@ import urllib.error
 from datetime import datetime, timezone
 
 USERNAME = "3az29"
-URL = f"https://www.instagram.com/{USERNAME}/"
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
 
-req = urllib.request.Request(
-    URL,
-    headers={"User-Agent": "Mozilla/5.0"}
-)
 
-print(f"Check time: {datetime.now(timezone.utc).isoformat()}")
-print(f"Username: @{USERNAME}")
+def notify(message):
+    if not NTFY_TOPIC:
+        print("Notification skipped: NTFY_TOPIC is not configured.")
+        return
 
-try:
-    with urllib.request.urlopen(req, timeout=20) as response:
-        page = response.read().decode("utf-8", errors="ignore")
-        status = response.status
+    # Send the topic as the URL path, without exposing it in logs.
+    url = "https://ntfy.sh/" + NTFY_TOPIC
+    request = urllib.request.Request(
+        url,
+        data=message.encode("utf-8"),
+        headers={
+            "Title": "Instagram Username Monitor",
+            "Priority": "default",
+        },
+        method="POST",
+    )
 
-    if status == 200 and "Page Not Found" not in page:
-        print("Profile page responded; username may be reserved or active.")
-    else:
-        print("INCONCLUSIVE: response does not prove availability.")
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            print(f"Notification sent. HTTP {response.status}")
+    except Exception as error:
+        print(f"Notification failed: {type(error).__name__}")
 
-except urllib.error.HTTPError as e:
-    print(f"INCONCLUSIVE: Instagram returned HTTP {e.code}.")
-except Exception as e:
-    print(f"INCONCLUSIVE: {type(e).__name__}: {e}")
 
-print("A public profile check cannot confirm username availability.")
+def main():
+    print("Check time:", datetime.now(timezone.utc).isoformat())
+    print(f"Username: @{USERNAME}")
+
+    url = f"https://www.instagram.com/{USERNAME}/"
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Mozilla/5.0"},
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            status = response.status
+            page = response.read(500000).decode("utf-8", errors="replace")
+
+        print(f"Instagram HTTP status: {status}")
+
+        if status == 200:
+            print(
+                "INCONCLUSIVE: Instagram returned a page. "
+                "This does not prove the username is available."
+            )
+        else:
+            print("INCONCLUSIVE: Availability could not be confirmed.")
+
+    except urllib.error.HTTPError as error:
+        print(f"INCONCLUSIVE: Instagram returned HTTP {error.code}.")
+        print("A public profile check cannot confirm username availability.")
+
+    except Exception as error:
+        print(f"INCONCLUSIVE: Request failed ({type(error).__name__}).")
+
+    print("No availability claim will be made from this check.")
+
+
+if __name__ == "__main__":
+    main()
